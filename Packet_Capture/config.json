@@ -1,0 +1,13 @@
+{
+  "pcap_file": "data/test.pcap",
+  "ml_api_url": "http://127.0.0.1:5000/predict",
+  "output_json": "data/packets.json",
+  "blocked_sites": [
+    "facebook.com",
+    "instagram.com",
+    "youtube.com",
+    "twitter.com",
+    "tiktok.com",
+    "snapchat.com"
+  ]
+}

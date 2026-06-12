@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DPI System — Live Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Courier New', monospace;
+    background: #0a0e1a;
+    color: #c9d1e0;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #1e2d45;
+    padding-bottom: 1rem;
+  }
+
+  header h1 {
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    color: #4fc3f7;
+    text-transform: uppercase;
+  }
+
+  header p {
+    font-size: 0.75rem;
+    color: #4a5a6e;
+  }
+
+  .live-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #4caf50;
+    display: inline-block;
+    margin-right: 6px;
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .status-bar {
+    font-size: 0.72rem;
+    color: #4a5a6e;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .status-bar span { color: #4fc3f7; }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 2rem;
+  }
+
+  .metric-card {
+    background: #0f1824;
+    border: 1px solid #1e2d45;
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    transition: border-color 0.3s;
+  }
+
+  .metric-card:hover { border-color: #4fc3f7; }
+
+  .metric-card .label {
+    font-size: 0.7rem;
+    color: #4a5a6e;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  .metric-card .value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #e0e6f0;
+  }
+
+  .metric-card.allowed .value { color: #4caf50; }
+  .metric-card.blocked .value { color: #ef5350; }
+  .metric-card.tcp .value { color: #4fc3f7; }
+  .metric-card.udp .value { color: #ffb74d; }
+
+  .charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 2rem;
+  }
+
+  .chart-card {
+    background: #0f1824;
+    border: 1px solid #1e2d45;
+    border-radius: 8px;
+    padding: 1.2rem;
+  }
+
+  .chart-card h3 {
+    font-size: 0.72rem;
+    color: #4a5a6e;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+  }
+
+  .chart-card canvas { max-height: 200px; }
+
+  .packet-log {
+    background: #0f1824;
+    border: 1px solid #1e2d45;
+    border-radius: 8px;
+    padding: 1.2rem;
+    margin-bottom: 2rem;
+  }
+
+  .packet-log h3 {
+    font-size: 0.72rem;
+    color: #4a5a6e;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1rem;
+  }
+
+  .log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+  }
+
+  .log-table th {
+    text-align: left;
+    padding: 6px 10px;
+    color: #4a5a6e;
+    border-bottom: 1px solid #1e2d45;
+    font-weight: 400;
+    text-transform: uppercase;
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+  }
+
+  .log-table td {
+    padding: 7px 10px;
+    border-bottom: 1px solid #111b28;
+    color: #9aafc4;
+  }
+
+  .log-table tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+
+  .badge.allowed { background: #1b3a2a; color: #4caf50; }
+  .badge.blocked { background: #3a1b1b; color: #ef5350; }
+  .badge.attack  { background: #3a1b1b; color: #ef5350; }
+  .badge.normal  { background: #1b2a3a; color: #4fc3f7; }
+  .badge.tcp     { background: #1b2a3a; color: #4fc3f7; }
+  .badge.udp     { background: #2e2410; color: #ffb74d; }
+
+  .no-data {
+    text-align: center;
+    padding: 2rem;
+    color: #4a5a6e;
+    font-size: 0.85rem;
+  }
+
+  .no-data span { display: block; font-size: 2rem; margin-bottom: 0.5rem; }
+
+  footer {
+    font-size: 0.7rem;
+    color: #2a3a4e;
+    text-align: center;
+    margin-top: 1rem;
+  }
+
+  @media (max-width: 600px) {
+    .charts { grid-template-columns: 1fr; }
+    body { padding: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>&#9632; DPI System</h1>
+    <p>Deep Packet Inspection — Live Monitor</p>
+  </div>
+  <div style="text-align:right;">
+    <div style="font-size:0.75rem; color:#4a5a6e;">
+      <span class="live-dot"></span>
+      <span id="live-status" style="color:#4caf50;">LIVE</span>
+    </div>
+    <div style="font-size:0.7rem; color:#2a3a4e; margin-top:4px;" id="last-update">Waiting for data...</div>
+  </div>
+</header>
+
+<div class="status-bar">
+  <span>PCAP: <span id="pcap-file">data/test.pcap</span></span>
+  <span>ML API: <span id="api-url">http://127.0.0.1:5000</span></span>
+  <span>Model: <span>Random Forest · UNSW-NB15</span></span>
+</div>
+
+<div class="metrics">
+  <div class="metric-card">
+    <div class="label">Total packets</div>
+    <div class="value" id="total">0</div>
+  </div>
+  <div class="metric-card tcp">
+    <div class="label">TCP</div>
+    <div class="value" id="tcp">0</div>
+  </div>
+  <div class="metric-card udp">
+    <div class="label">UDP</div>
+    <div class="value" id="udp">0</div>
+  </div>
+  <div class="metric-card allowed">
+    <div class="label">Allowed</div>
+    <div class="value" id="allowed">0</div>
+  </div>
+  <div class="metric-card blocked">
+    <div class="label">Blocked</div>
+    <div class="value" id="blocked">0</div>
+  </div>
+</div>
+
+<div class="charts">
+  <div class="chart-card">
+    <h3>Protocol split</h3>
+    <canvas id="protoChart" role="img" aria-label="Protocol split pie chart">TCP vs UDP</canvas>
+  </div>
+  <div class="chart-card">
+    <h3>Allow vs block</h3>
+    <canvas id="decisionChart" role="img" aria-label="Allow vs block pie chart">Allowed vs Blocked</canvas>
+  </div>
+</div>
+
+<div class="packet-log">
+  <h3>Packet log — last 20 packets</h3>
+  <div id="log-container">
+    <div class="no-data">
+      <span>&#9632;</span>
+      Run <code>.\capture_service.exe</code> and press 1 to start analysis
+    </div>
+  </div>
+</div>
+
+<footer>DPI System &mdash; C++ + Python Flask + Random Forest ML &mdash; UNSW-NB15 Dataset</footer>
+
+<script>
+let protoChart, decisionChart;
+let lastPacketCount = 0;
+
+function initCharts() {
+  const chartOpts = {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: { legend: { display: false } }
+  };
+
+  protoChart = new Chart(document.getElementById('protoChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['TCP', 'UDP'],
+      datasets: [{ data: [0, 0], backgroundColor: ['#4fc3f7', '#ffb74d'], borderWidth: 0 }]
+    },
+    options: chartOpts
+  });
+
+  decisionChart = new Chart(document.getElementById('decisionChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Allowed', 'Blocked'],
+      datasets: [{ data: [0, 0], backgroundColor: ['#4caf50', '#ef5350'], borderWidth: 0 }]
+    },
+    options: chartOpts
+  });
+}
+
+function updateCharts(tcp, udp, allowed, blocked) {
+  protoChart.data.datasets[0].data = [tcp, udp];
+  protoChart.update('none');
+  decisionChart.data.datasets[0].data = [allowed, blocked];
+  decisionChart.update('none');
+}
+
+function renderTable(packets) {
+  if (!packets || packets.length === 0) return;
+
+  const last20 = packets.slice(-20).reverse();
+  let html = '<table class="log-table"><thead><tr>' +
+    '<th>#</th><th>Src IP</th><th>Dst IP</th><th>Proto</th>' +
+    '<th>Port</th><th>ML</th><th>Decision</th><th>App</th>' +
+    '</tr></thead><tbody>';
+
+  last20.forEach(p => {
+    const mlClass = p.ml === 'ATTACK' ? 'attack' : 'normal';
+    const decClass = p.decision === 'BLOCKED' ? 'blocked' : 'allowed';
+    const protoClass = p.protocol === 'TCP' ? 'tcp' : 'udp';
+    html += `<tr>
+      <td style="color:#4a5a6e">${p.id}</td>
+      <td>${p.src_ip || '—'}</td>
+      <td>${p.dst_ip || '—'}</td>
+      <td><span class="badge ${protoClass}">${p.protocol || '—'}</span></td>
+      <td>${p.dst_port || '—'}</td>
+      <td><span class="badge ${mlClass}">${p.ml || 'NORMAL'}</span></td>
+      <td><span class="badge ${decClass}">${p.decision || 'ALLOWED'}</span></td>
+      <td style="color:#4a5a6e">${p.app || '—'}</td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  document.getElementById('log-container').innerHTML = html;
+}
+
+async function fetchData() {
+  try {
+    const res = await fetch('data/packets.json?t=' + Date.now());
+    if (!res.ok) throw new Error('not found');
+
+    const data = await res.json();
+
+    document.getElementById('total').textContent   = data.stats.total   || 0;
+    document.getElementById('tcp').textContent     = data.stats.tcp     || 0;
+    document.getElementById('udp').textContent     = data.stats.udp     || 0;
+    document.getElementById('allowed').textContent = data.stats.allowed || 0;
+    document.getElementById('blocked').textContent = data.stats.blocked || 0;
+
+    updateCharts(
+      data.stats.tcp || 0,
+      data.stats.udp || 0,
+      data.stats.allowed || 0,
+      data.stats.blocked || 0
+    );
+
+    renderTable(data.packets);
+
+    const now = new Date().toLocaleTimeString();
+    document.getElementById('last-update').textContent = 'Updated ' + now;
+
+    if (data.packets && data.packets.length !== lastPacketCount) {
+      lastPacketCount = data.packets.length;
+      document.getElementById('live-status').textContent = 'LIVE';
+      document.getElementById('live-status').style.color = '#4caf50';
+    }
+
+  } catch (e) {
+    document.getElementById('live-status').textContent = 'WAITING';
+    document.getElementById('live-status').style.color = '#ffb74d';
+    document.getElementById('last-update').textContent = 'Waiting for packets.json...';
+  }
+}
+
+initCharts();
+fetchData();
+setInterval(fetchData, 2000);
+</script>
+</body>
+</html>
